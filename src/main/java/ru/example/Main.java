@@ -7,16 +7,30 @@ import java.util.Random;
 public class Main {
     public final static Map<Integer, Integer> sizeToFreq = new HashMap<>();
 
-    public static void main(String[] args) {
-        for (int i = 0; i < 10000; i++) {
-            new Thread(() -> {
-                int countR = 0;
-                String str = generateRoute("RLRFR", 100);
+    public static void main(String[] args) throws InterruptedException {
 
-                for (int j = 0; j < str.length(); j++) {
-                    if (str.charAt(j) == 'R')
-                        countR++;
+        Thread threadMax = new Thread(() -> {
+            synchronized (sizeToFreq) {
+                while (!Thread.interrupted()) {
+                    try {
+                        sizeToFreq.wait();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    Map.Entry<Integer, Integer> entryMax = sizeToFreq.entrySet().stream()
+                            .max(Map.Entry.comparingByValue())
+                            .orElse(null);
+                    System.out.printf("Текущий лидер: %d (%d раз)\n",
+                            entryMax.getKey(), entryMax.getValue());
                 }
+            }
+        });
+        threadMax.start();
+
+        for (int i = 0; i < 100; i++) {
+            Thread thread = new Thread(() -> {
+                String str = generateRoute("RLRFR", 100);
+                int countR = (int) str.chars().filter(x -> x == 'R').count();
 
                 synchronized (sizeToFreq) {
                     if (sizeToFreq.containsKey(countR)) {
@@ -24,9 +38,13 @@ public class Main {
                     } else {
                         sizeToFreq.put(countR, 1);
                     }
+                    sizeToFreq.notify();
                 }
-            }).start();
+            });
+            thread.start();
+            thread.join();
         }
+        threadMax.interrupt();
 
         Map.Entry<Integer, Integer> entryMax = sizeToFreq.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
